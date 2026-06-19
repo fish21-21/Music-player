@@ -1,9 +1,10 @@
 import os
+import subprocess
 import streamlit as st
-from moviepy.video.io.VideoFileClip import VideoFileClip
+import imageio_ffmpeg
 
 # -------------------------
-# Page Setup
+# Page setup
 # -------------------------
 
 st.set_page_config(
@@ -16,46 +17,59 @@ st.title("🎵 Video Audio Player")
 st.write("Upload a video and listen to its audio.")
 
 # -------------------------
-# Create temp folder
+# Temp folder
 # -------------------------
 
-os.makedirs("temp", exist_ok=True)
+TEMP_FOLDER = "temp"
+os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 # -------------------------
-# Upload Video
+# Upload
 # -------------------------
 
-video = st.file_uploader(
+uploaded_video = st.file_uploader(
     "Choose a video",
     type=["mp4", "mov", "avi", "mkv", "webm"]
 )
 
-if video is not None:
+if uploaded_video:
 
-    video_path = os.path.join("temp", "video.mp4")
+    video_path = os.path.join(TEMP_FOLDER, uploaded_video.name)
 
     with open(video_path, "wb") as f:
-        f.write(video.read())
+        f.write(uploaded_video.read())
 
     st.success("Video uploaded!")
 
     st.video(video_path)
 
-    if st.button("🎵 Extract Audio"):
+    audio_path = os.path.join(TEMP_FOLDER, "audio.mp3")
 
-        with st.spinner("Extracting audio..."):
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
 
-            clip = VideoFileClip(video_path)
+    with st.spinner("Extracting audio..."):
 
-            audio_path = os.path.join("temp", "audio.mp3")
+        result = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-i", video_path,
+                "-vn",
+                "-acodec", "libmp3lame",
+                audio_path
+            ],
+            capture_output=True,
+            text=True
+        )
 
-            clip.audio.write_audiofile(
-                audio_path,
-                logger=None
-            )
+    if result.returncode == 0:
 
-            clip.close()
-
-        st.success("Done!")
+        st.success("Audio extracted!")
 
         st.audio(audio_path)
+
+    else:
+
+        st.error("FFmpeg failed.")
+
+        st.code(result.stderr)
